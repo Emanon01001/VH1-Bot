@@ -5,7 +5,7 @@ use crate::Context;
 use crate::Error;
 
 /// Skip the current song.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn skip(ctx: Context<'_>, number: Option<usize>) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 
@@ -38,7 +38,7 @@ pub async fn skip(ctx: Context<'_>, number: Option<usize>) -> Result<(), Error> 
 }
 
 /// Pause the current song.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 
@@ -57,7 +57,7 @@ pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Resume playing the current song.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 
@@ -76,7 +76,7 @@ pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Stops the playback of the current song.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 
@@ -100,7 +100,7 @@ pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Jump to a specific time in the song, in seconds.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn seek(
     ctx: Context<'_>,
     #[description = "Time to jump to (in seconds)"] time: u64,
@@ -127,7 +127,7 @@ pub async fn seek(
 }
 
 /// Remove a specific song from the queue.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn remove(
     ctx: Context<'_>,
     #[description = "Queue item index to remove"] index: usize,
@@ -149,7 +149,7 @@ pub async fn remove(
 }
 
 /// Clear the current queue.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 
@@ -167,7 +167,7 @@ pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn set_volume(ctx: Context<'_>, volume: u16) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 
@@ -190,7 +190,7 @@ pub async fn set_volume(ctx: Context<'_>, volume: u16) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
     let guild_id = lavalink_guild_id(ctx.guild_id().unwrap());
 

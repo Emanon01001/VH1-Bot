@@ -15,7 +15,7 @@ use lavalink_rs::{model::events, prelude::*};
 use serde::Deserialize;
 use songbird::{Config, SerenityInit};
 
-use tokio::{fs::OpenOptions, io::{AsyncBufReadExt, AsyncWriteExt, BufReader}};
+use tokio::{fs::OpenOptions, io::AsyncWriteExt, process::Command};
 
 #[derive(Deserialize, Debug)]
 struct Database {
@@ -63,7 +63,7 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 static GLOBAL_DATA: Lazy<Database> = Lazy::new(|| {
-    let config_content = std::fs::read_to_string("D:/Programming/Rust/ar1efs-discord_bot/src/Setting.toml").unwrap();
+    let config_content = std::fs::read_to_string("D:/Programming/Rust/VH1-Bot/src/Setting.toml").unwrap();
     let config: Database = toml::from_str(&config_content).unwrap();
     config
 });
@@ -246,27 +246,13 @@ async fn main() -> Result<(), Error> {
     .await
     .expect("Error creating client");
 
-    let mut output = Command::new("cmd")
+    let _ = Command::new("pwsh")
         .args([
-            "/K", // "/K" を使用するとウィンドウが開いたままになります
-            "start",
-            "cmd",
-            "/K",
-            "C:/Program Files/Java/jdk-21/bin/java.exe -jar D:/Apps/Lavalink/Lavalink_V4_2.2.1.jar",
+        "-Command",
+        "cd 'D:/Apps/Lavalink'; Start-Process -FilePath 'C:/Program Files/Java/jdk-17/bin/java.exe' -ArgumentList '-jar Lavalink_V4_2.2.1.jar'"
         ])
         .spawn()
         .expect("プロセスの起動に失敗しました");
-
-    // 標準出力の取得
-    if let Some(stdout) = output.stdout.take() {
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
-
-        // 一行ずつ標準出力を読み込み、表示
-        while let Ok(Some(line)) = lines.next_line().await {
-            println!("{}", line);
-        }
-    }
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
