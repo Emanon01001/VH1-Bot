@@ -1,7 +1,7 @@
 extern crate tracing;
-use crate::command::translate;
+use crate::sub_command::translate;
 
-mod command;
+mod sub_command;
 mod commands;
 
 use once_cell::sync::Lazy;
@@ -15,7 +15,7 @@ use lavalink_rs::{model::events, prelude::*};
 use serde::Deserialize;
 use songbird::{Config, SerenityInit};
 
-use tokio::{fs::OpenOptions, io::AsyncWriteExt};
+use tokio::{fs::OpenOptions, io::{AsyncBufReadExt, AsyncWriteExt, BufReader}};
 
 #[derive(Deserialize, Debug)]
 struct Database {
@@ -178,8 +178,8 @@ async fn main() -> Result<(), Error> {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
-                command::ping(),
-                command::trans(),
+                sub_command::ping(),
+                sub_command::trans(),
                 commands::music_basic::play(),
                 commands::music_basic::join(),
                 commands::music_basic::leave(),
@@ -245,6 +245,28 @@ async fn main() -> Result<(), Error> {
     .register_songbird_from_config(songbird_config)
     .await
     .expect("Error creating client");
+
+    let mut output = Command::new("cmd")
+        .args([
+            "/K", // "/K" を使用するとウィンドウが開いたままになります
+            "start",
+            "cmd",
+            "/K",
+            "C:/Program Files/Java/jdk-21/bin/java.exe -jar D:/Apps/Lavalink/Lavalink_V4_2.2.1.jar",
+        ])
+        .spawn()
+        .expect("プロセスの起動に失敗しました");
+
+    // 標準出力の取得
+    if let Some(stdout) = output.stdout.take() {
+        let reader = BufReader::new(stdout);
+        let mut lines = reader.lines();
+
+        // 一行ずつ標準出力を読み込み、表示
+        while let Ok(Some(line)) = lines.next_line().await {
+            println!("{}", line);
+        }
+    }
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
