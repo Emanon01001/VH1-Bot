@@ -1,3 +1,6 @@
+use poise::serenity_prelude::colours::roles::DARK_BLUE;
+use poise::serenity_prelude::CreateEmbed;
+use poise::serenity_prelude::CreateMessage;
 use poise::serenity_prelude as serenity;
 use std::time::Duration;
 
@@ -203,20 +206,26 @@ pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
 
     let queue = player.get_queue().get_queue().await?;
 
-    for v in queue.iter().take(n) {
-        if let Some(uri) = &v.track.info.uri {
-            ctx.say(format!(
-                "playlist to queue:  [{} - {}](<{}>) ",
-                &v.track.info.author, &v.track.info.title, uri
-            ))
-            .await?;
-        } else {
-            ctx.say(format!(
-                "playlist to queue:  [{} - {}] ",
-                &v.track.info.author, &v.track.info.title,
-            ))
-            .await?;
-        }
+    let mut fields: Vec<(String, String, bool)> = Vec::default();
+
+    for (i, v) in queue.iter().take(n).enumerate() {
+        let track_info = &v.track.info;
+
+        // 曲の詳細をEmbedのフィールドとして追加
+        let title = format!("{}. {} - {}", i + 1, track_info.author, track_info.title);
+            let value = if let Some(uri) = &track_info.uri {
+                format!("[Link to track]({})", uri)
+            } else {
+                "No URL available".to_string()
+            };
+        fields.push((title, value, false));
+    }
+    let embed = CreateEmbed::new().title("Current Queue").color(DARK_BLUE).fields(fields);
+
+    let builder = CreateMessage::new().tts(false).embed(embed);
+
+    if let Err(e) = ctx.channel_id().send_message(&ctx.http(), builder).await {
+        println!("{}", e)
     }
 
     Ok(())

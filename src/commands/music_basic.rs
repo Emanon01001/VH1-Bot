@@ -1,8 +1,6 @@
 use crate::Context;
 use crate::Error;
 
-use hound::WavSpec;
-use hound::WavWriter;
 use lavalink_rs::prelude::*;
 use poise::serenity_prelude::Color;
 use poise::serenity_prelude::CreateEmbed;
@@ -13,15 +11,11 @@ use std::ops::Deref;
 
 use poise::serenity_prelude as serenity;
 use serenity::{model::id::ChannelId, Http, Mentionable};
-use songbird::CoreEvent;
-
-use super::voice_receive::Receiver;
 
 pub async fn _join(
     ctx: &Context<'_>,
     guild_id: serenity::GuildId,
     channel_id: Option<serenity::ChannelId>,
-    receive: Option<String>,
 ) -> Result<bool, Error> {
     let lava_client = ctx.data().lavalink.clone();
 
@@ -49,53 +43,7 @@ pub async fn _join(
             }
         };
 
-        match receive {
-            Some(word) => {
-                if word.as_str() == "receive" {
-                    let _ = WavWriter::create(
-                        "output.wav",
-                        WavSpec {
-                            channels: 2,
-                            sample_rate: 48000,
-                            bits_per_sample: 16,
-                            sample_format: hound::SampleFormat::Int,
-                        },
-                    )
-                    .unwrap();
-
-                    let handler = manager
-                        .join(
-                            songbird::id::GuildId::from(NonZeroU64::from(guild_id)),
-                            connect_to,
-                        )
-                        .await;
-
-                    match handler {
-                        Ok(handler_lock) => {
-                            let mut handler = handler_lock.lock().await;
-                            let receiver = Receiver::new();
-
-                            handler.add_global_event(CoreEvent::VoiceTick.into(), receiver.clone());
-                            handler.add_global_event(
-                                CoreEvent::ClientDisconnect.into(),
-                                receiver.clone(),
-                            );
-
-                            let _ = ctx.say(format!("Joined {}", connect_to.mention())).await?;
-
-                            return Ok(true);
-                        }
-                        Err(why) => {
-                            let _ = ctx
-                                .say(format!("Error joining the channel: {}", why))
-                                .await?;
-                            return Err(why.into());
-                        }
-                    }
-                }
-            }
-            None => {
-                let handler = manager
+        let handler = manager
                     .join_gateway(
                         songbird::id::GuildId::from(NonZeroU64::from(guild_id)),
                         connect_to,
@@ -130,8 +78,6 @@ pub async fn _join(
                         return Err(why.into());
                     }
                 }
-            }
-        }
     }
 
     Ok(false)
@@ -147,7 +93,7 @@ pub async fn play(
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 
-    let _connect = _join(&ctx, guild_id, None, None).await?;
+    let _connect = _join(&ctx, guild_id, None,).await?;
     let lava_client = ctx.data().lavalink.clone();
 
     let Some(player) = lava_client.get_player_context(lavalink_guild_id(guild_id)) else {
@@ -251,15 +197,14 @@ pub async fn play(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(prefix_command, slash_command)]
 pub async fn join(
     ctx: Context<'_>,
     channel_id: Option<serenity::ChannelId>,
-    receive: Option<String>,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 
-    let _ = _join(&ctx, guild_id, channel_id, receive).await?;
+    let _ = _join(&ctx, guild_id, channel_id).await?;
 
     Ok(())
 }

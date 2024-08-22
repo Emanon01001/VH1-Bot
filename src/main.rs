@@ -195,6 +195,7 @@ async fn main() -> Result<(), Error> {
                 commands::music_advanced::queue(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("s!".to_string()),
                 ..Default::default()
             },
             ..Default::default()
