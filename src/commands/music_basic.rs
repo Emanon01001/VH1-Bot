@@ -4,6 +4,9 @@ use crate::Error;
 use hound::WavSpec;
 use hound::WavWriter;
 use lavalink_rs::prelude::*;
+use poise::serenity_prelude::Color;
+use poise::serenity_prelude::CreateEmbed;
+use poise::serenity_prelude::CreateMessage;
 use std::collections::VecDeque;
 use std::num::NonZeroU64;
 use std::ops::Deref;
@@ -135,7 +138,7 @@ pub async fn _join(
 }
 
 /// Play a song in the voice channel you are connected in.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn play(
     ctx: Context<'_>,
     #[description = "Search term or URL"]
@@ -196,8 +199,14 @@ pub async fn play(
     };
 
     if let Some(info) = playlist_info {
+
+        let embed = CreateEmbed::new()
+            .color(Color::DARK_BLUE)
+            .description(format!("Added playlist to queue: **{}**", info.name,));
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        
         let _ = ctx
-            .say(format!("Added playlist to queue: {}", info.name,))
+            .channel_id().send_message(&ctx.http(), builder)
             .await?;
     } else {
         let track = &tracks[0].track;
@@ -235,7 +244,7 @@ pub async fn play(
     Ok(())
 }
 
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn join(
     ctx: Context<'_>,
     channel_id: Option<serenity::ChannelId>,
@@ -248,7 +257,7 @@ pub async fn join(
     Ok(())
 }
 /// Leave the current voice channel.
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 

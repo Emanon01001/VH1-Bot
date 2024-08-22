@@ -6,14 +6,14 @@ use crate::Error;
 use crate::TranslationResponse;
 use crate::GLOBAL_DATA;
 
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     let latency = ctx.ping().await;
     ctx.say(format!("{:?}ms", latency.as_millis())).await?;
     Ok(())
 }
 
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(slash_command)]
 pub async fn trans(ctx: Context<'_>, language: String, word: String) -> Result<(), Error> {
     let text_to_translate = word;
     let translate_language = language;

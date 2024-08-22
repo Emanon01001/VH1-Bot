@@ -1,6 +1,7 @@
 use lavalink_rs::{hook, model::events, prelude::*};
-use poise::serenity_prelude::{model::id::ChannelId, Http};
+use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateMessage, Http, Message};
 use tracing::info;
+
 
 #[hook]
 pub async fn raw_event(_: LavalinkClient, session_id: String, event: &serde_json::Value) {
@@ -21,27 +22,30 @@ pub async fn track_start(client: LavalinkClient, _session_id: String, event: &ev
     let data = player_context
         .data::<(ChannelId, std::sync::Arc<Http>)>()
         .unwrap();
-    let (channel_id, http) = (&data.0, &data.1);
-    let msg = {
+    let (channel_id, http) = (&data.0, &data.1,);
+    let message = {
         let track = &event.track;
 
         if let Some(uri) = &track.info.uri {
-            format!(
-                "Now playing: [{} - {}](<{}>) | Requested by <@!{}>",
-                track.info.author,
-                track.info.title,
-                uri,
-                track.user_data.clone().unwrap()["requester_id"]
-            )
+
+            let embed = CreateEmbed::new()
+                .color(Color::DARK_BLUE)
+                .title("Started playing")
+                .url(uri)
+                .field(&track.info.title, &track.info.author, false)
+                .timestamp(poise::serenity_prelude::model::Timestamp::now());
+
+            CreateMessage::new().tts(false).embed(embed)
         } else {
-            format!(
-                "Now playing: {} - {} | Requested by <@!{}>",
-                track.info.author,
-                track.info.title,
-                track.user_data.clone().unwrap()["requester_id"]
-            )
+            let embed = CreateEmbed::new()
+                .color(Color::DARK_BLUE)
+                .title("Started playing")
+                .field(&track.info.title, &track.info.author, false)
+                .timestamp(poise::serenity_prelude::model::Timestamp::now());
+
+            CreateMessage::new().tts(false).embed(embed)
         }
     };
 
-    let _ = channel_id.say(http, msg).await;
+    let _ = channel_id.send_message(&http, message).await.unwrap();
 }

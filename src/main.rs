@@ -1,8 +1,8 @@
 extern crate tracing;
 use crate::sub_command::translate;
 
-mod sub_command;
 mod commands;
+mod sub_command;
 
 use once_cell::sync::Lazy;
 use poise::serenity_prelude::{
@@ -63,7 +63,8 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 static GLOBAL_DATA: Lazy<Database> = Lazy::new(|| {
-    let config_content = std::fs::read_to_string("D:/Programming/Rust/VH1-Bot/src/Setting.toml").unwrap();
+    let config_content =
+        std::fs::read_to_string("D:/Programming/Rust/VH1-Bot/src/Setting.toml").unwrap();
     let config: Database = toml::from_str(&config_content).unwrap();
     config
 });
@@ -214,7 +215,7 @@ async fn main() -> Result<(), Error> {
                     hostname: "localhost:2333".to_string(),
                     is_ssl: false,
                     events: events::Events::default(),
-                    password: "youshallnotpass".to_string(),
+                    password: "ncfhewau3a2rncu".to_string(),
                     user_id: lavalink_rs::model::UserId::from(u64::from(
                         ctx.cache.current_user().id,
                     )),
@@ -249,7 +250,7 @@ async fn main() -> Result<(), Error> {
     let _ = Command::new("pwsh")
         .args([
         "-Command",
-        "cd 'D:/Apps/Lavalink'; Start-Process -FilePath 'C:/Program Files/Java/jdk-17/bin/java.exe' -ArgumentList '-jar Lavalink_V4_2.2.1.jar'"
+        "cd 'D:/Programming/Rust/VH1-Bot/src/Lavalink'; Start-Process -FilePath 'C:/Program Files/Java/jdk-17/bin/java.exe' -ArgumentList '-jar Lavalink_V4_2.2.1.jar'"
         ])
         .spawn()
         .expect("プロセスの起動に失敗しました");
