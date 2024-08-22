@@ -1,7 +1,6 @@
 use lavalink_rs::{hook, model::events, prelude::*};
-use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateMessage, Http, Message};
+use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateMessage, Http};
 use tracing::info;
-
 
 #[hook]
 pub async fn raw_event(_: LavalinkClient, session_id: String, event: &serde_json::Value) {
@@ -22,12 +21,11 @@ pub async fn track_start(client: LavalinkClient, _session_id: String, event: &ev
     let data = player_context
         .data::<(ChannelId, std::sync::Arc<Http>)>()
         .unwrap();
-    let (channel_id, http) = (&data.0, &data.1,);
+    let (channel_id, http) = (&data.0, &data.1);
     let message = {
         let track = &event.track;
 
         if let Some(uri) = &track.info.uri {
-
             let embed = CreateEmbed::new()
                 .color(Color::DARK_BLUE)
                 .title("Started playing")

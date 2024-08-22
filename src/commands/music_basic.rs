@@ -199,30 +199,37 @@ pub async fn play(
     };
 
     if let Some(info) = playlist_info {
-
         let embed = CreateEmbed::new()
             .color(Color::DARK_BLUE)
             .description(format!("Added playlist to queue: **{}**", info.name,));
         let builder = CreateMessage::new().tts(false).embed(embed);
-        
-        let _ = ctx
-            .channel_id().send_message(&ctx.http(), builder)
-            .await?;
+
+        let _ = ctx.channel_id().send_message(&ctx.http(), builder).await?;
     } else {
         let track = &tracks[0].track;
 
         if let Some(uri) = &track.info.uri {
-            ctx.say(format!(
-                "Added to queue: [{} - {}](<{}>)",
-                track.info.author, track.info.title, uri
-            ))
-            .await?;
+            let _ = ctx.say(uri).await.unwrap();
+
+            let embed = CreateEmbed::new()
+                .color(Color::DARK_BLUE)
+                .description(format!(
+                    "Added to queue: [{} - {}](<{}>)",
+                    track.info.author, track.info.title, uri
+                ));
+            let builder = CreateMessage::new().tts(false).embed(embed);
+
+            let _ = ctx.channel_id().send_message(&ctx.http(), builder).await?;
         } else {
-            ctx.say(format!(
-                "Added to queue: {} - {}",
-                track.info.author, track.info.title
-            ))
-            .await?;
+            let embed = CreateEmbed::new()
+                .color(Color::DARK_BLUE)
+                .description(format!(
+                    "Added to queue: {} - {}",
+                    track.info.author, track.info.title
+                ));
+            let builder = CreateMessage::new().tts(false).embed(embed);
+
+            let _ = ctx.channel_id().send_message(&ctx.http(), builder).await?;
         }
     }
 
@@ -259,19 +266,32 @@ pub async fn join(
 /// Leave the current voice channel.
 #[poise::command(slash_command)]
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().unwrap();
+    let guild_id = match ctx.guild_id() {
+        Some(guild_id) => guild_id,
+        None => {
+            ctx.say("Could not find the guild ID.").await?;
+            return Ok(());
+        }
+    };
 
     let manager = songbird::get(ctx.serenity_context()).await.unwrap().clone();
     let lava_client = ctx.data().lavalink.clone();
 
-    if let Err(_err) = lava_client.delete_player(lavalink_guild_id(guild_id)).await {
-        println!("{}", _err);
-        if manager.get(guild_id).is_some() {
-            manager.remove(guild_id).await?;
+    // Lavalinkのプレイヤー削除
+    match lava_client.delete_player(lavalink_guild_id(guild_id)).await {
+        Ok(_) => (),
+        Err(err) => {
+            println!("Error deleting Lavalink player: {}", err);
         }
     }
 
-    ctx.say("Left voice channel.").await?;
+    // Songbirdのボイスチャンネルからの退出
+    if let Some(handler) = manager.get(guild_id) {
+        let _ = handler.lock().await.leave().await;
+        ctx.say("Left the voice channel.").await?;
+    } else {
+        ctx.say("Not connected to a voice channel.").await?;
+    }
 
     Ok(())
 }
