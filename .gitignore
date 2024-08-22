@@ -1,4 +1,5 @@
 /target
+/Lavalink
 src/Setting.toml
 Cargo.lock
 log.txt
