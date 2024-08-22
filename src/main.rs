@@ -181,18 +181,18 @@ async fn main() -> Result<(), Error> {
             commands: vec![
                 sub_command::ping(),
                 sub_command::trans(),
-                commands::music_basic::play(),
-                commands::music_basic::join(),
-                commands::music_basic::leave(),
-                commands::music_advanced::skip(),
-                commands::music_advanced::pause(),
-                commands::music_advanced::resume(),
-                commands::music_advanced::stop(),
-                commands::music_advanced::seek(),
-                commands::music_advanced::clear(),
-                commands::music_advanced::remove(),
-                commands::music_advanced::set_volume(),
-                commands::music_advanced::queue(),
+                commands::music::music_basic::play(),
+                commands::music::music_basic::join(),
+                commands::music::music_basic::leave(),
+                commands::music::music_advanced::skip(),
+                commands::music::music_advanced::pause(),
+                commands::music::music_advanced::resume(),
+                commands::music::music_advanced::stop(),
+                commands::music::music_advanced::seek(),
+                commands::music::music_advanced::clear(),
+                commands::music::music_advanced::remove(),
+                commands::music::music_advanced::set_volume(),
+                commands::music::music_advanced::queue(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("s!".to_string()),
@@ -205,9 +205,9 @@ async fn main() -> Result<(), Error> {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
 
                 let events = events::Events {
-                    raw: Some(commands::music_events::raw_event),
-                    ready: Some(commands::music_events::ready_event),
-                    track_start: Some(commands::music_events::track_start),
+                    raw: Some(commands::music::music_events::raw_event),
+                    ready: Some(commands::music::music_events::ready_event),
+                    track_start: Some(commands::music::music_events::track_start),
                     ..Default::default()
                 };
 
