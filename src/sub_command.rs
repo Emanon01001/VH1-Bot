@@ -1,5 +1,8 @@
 use poise::serenity_prelude::Color;
 use poise::serenity_prelude::CreateEmbed;
+use poise::serenity_prelude::Message;
+use tokio::fs::OpenOptions;
+use tokio::io::AsyncWriteExt;
 
 use crate::Context;
 use crate::Error;
@@ -60,4 +63,31 @@ pub async fn translate(text_to_translate: &str, translate_language: &str) -> (St
         (language, trans)
     };
     trans
+}
+
+/// ログメッセージを非同期でファイルに出力するヘルパー関数
+pub async fn log_message(ctx: &poise::serenity_prelude::Context, msg: &Message) -> Result<(), Error> {
+    let mut file = OpenOptions::new().append(true).open("log.txt").await?;
+    // 日本標準時（UTC+9）のタイムスタンプを取得
+    let time = chrono::Utc::now() + chrono::Duration::hours(9);
+    // ギルド名の取得（失敗した場合はデフォルト文字列）
+    let guild_name = if let Some(guild_id) = msg.guild_id {
+        guild_id
+            .to_partial_guild(&ctx.http)
+            .await
+            .map(|guild| guild.name)
+            .unwrap_or_else(|_| "Unknown Guild".to_string())
+    } else {
+        "Unknown Guild".to_string()
+    };
+    let log_line = format!(
+        "Time: {} | Guild_Name: {} | GuildId: {} | {}: {}\n",
+        time,
+        guild_name,
+        msg.guild_id.map_or("None".to_string(), |id| id.to_string()),
+        msg.author.name,
+        msg.content
+    );
+    file.write_all(log_line.as_bytes()).await?;
+    Ok(())
 }

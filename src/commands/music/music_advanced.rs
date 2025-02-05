@@ -1,7 +1,7 @@
+use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::colours::roles::DARK_BLUE;
 use poise::serenity_prelude::CreateEmbed;
 use poise::serenity_prelude::CreateMessage;
-use poise::serenity_prelude as serenity;
 use std::time::Duration;
 
 use crate::Context;
@@ -213,14 +213,17 @@ pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
 
         // 曲の詳細をEmbedのフィールドとして追加
         let title = format!("{}. {} - {}", i + 1, track_info.author, track_info.title);
-            let value = if let Some(uri) = &track_info.uri {
-                format!("[Link to track]({})", uri)
-            } else {
-                "No URL available".to_string()
-            };
+        let value = if let Some(uri) = &track_info.uri {
+            format!("[Link to track]({})", uri)
+        } else {
+            "No URL available".to_string()
+        };
         fields.push((title, value, false));
     }
-    let embed = CreateEmbed::new().title("Current Queue").color(DARK_BLUE).fields(fields);
+    let embed = CreateEmbed::new()
+        .title("Current Queue")
+        .color(DARK_BLUE)
+        .fields(fields);
 
     let builder = CreateMessage::new().tts(false).embed(embed);
 

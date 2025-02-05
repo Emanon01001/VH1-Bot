@@ -44,40 +44,40 @@ pub async fn _join(
         };
 
         let handler = manager
-                    .join_gateway(
-                        songbird::id::GuildId::from(NonZeroU64::from(guild_id)),
-                        connect_to,
+            .join_gateway(
+                songbird::id::GuildId::from(NonZeroU64::from(guild_id)),
+                connect_to,
+            )
+            .await;
+
+        match handler {
+            Ok((connection_info, _)) => {
+                lava_client
+                    .create_player_context_with_data::<(ChannelId, std::sync::Arc<Http>)>(
+                        lavalink_guild_id(guild_id),
+                        lavalink_rs::model::player::ConnectionInfo {
+                            endpoint: connection_info.endpoint,
+                            token: connection_info.token,
+                            session_id: connection_info.session_id,
+                        },
+                        std::sync::Arc::new((
+                            ctx.channel_id(),
+                            ctx.serenity_context().http.clone(),
+                        )),
                     )
-                    .await;
+                    .await?;
 
-                match handler {
-                    Ok((connection_info, _)) => {
-                        lava_client
-                            .create_player_context_with_data::<(ChannelId, std::sync::Arc<Http>)>(
-                                lavalink_guild_id(guild_id),
-                                lavalink_rs::model::player::ConnectionInfo {
-                                    endpoint: connection_info.endpoint,
-                                    token: connection_info.token,
-                                    session_id: connection_info.session_id,
-                                },
-                                std::sync::Arc::new((
-                                    ctx.channel_id(),
-                                    ctx.serenity_context().http.clone(),
-                                )),
-                            )
-                            .await?;
+                let _ = ctx.say(format!("Joined {}", connect_to.mention())).await?;
 
-                        let _ = ctx.say(format!("Joined {}", connect_to.mention())).await?;
-
-                        return Ok(true);
-                    }
-                    Err(why) => {
-                        let _ = ctx
-                            .say(format!("Error joining the channel: {}", why))
-                            .await?;
-                        return Err(why.into());
-                    }
-                }
+                return Ok(true);
+            }
+            Err(why) => {
+                let _ = ctx
+                    .say(format!("Error joining the channel: {}", why))
+                    .await?;
+                return Err(why.into());
+            }
+        }
     }
 
     Ok(false)
@@ -93,7 +93,7 @@ pub async fn play(
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 
-    let _connect = _join(&ctx, guild_id, None,).await?;
+    let _connect = _join(&ctx, guild_id, None).await?;
     let lava_client = ctx.data().lavalink.clone();
 
     let Some(player) = lava_client.get_player_context(lavalink_guild_id(guild_id)) else {
@@ -198,10 +198,7 @@ pub async fn play(
 }
 
 #[poise::command(prefix_command, slash_command)]
-pub async fn join(
-    ctx: Context<'_>,
-    channel_id: Option<serenity::ChannelId>,
-) -> Result<(), Error> {
+pub async fn join(ctx: Context<'_>, channel_id: Option<serenity::ChannelId>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
 
     let _ = _join(&ctx, guild_id, channel_id).await?;
