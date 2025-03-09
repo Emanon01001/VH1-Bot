@@ -41,12 +41,15 @@ pub async fn translate(text_to_translate: &str, translate_language: &str) -> (St
     let client = reqwest::Client::new();
     let response = client
         .post(GLOBAL_DATA.endpoint.api_endpoint.as_str())
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .form(&[
-            ("auth_key", GLOBAL_DATA.token.api_key.as_str()),
-            ("text", text_to_translate),
-            ("target_lang", translate_language),
-        ])
+        .header(
+            "Authorization",
+            format!("DeepL-Auth-Key {}", GLOBAL_DATA.token.api_key),
+        )
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "text": [text_to_translate],
+            "target_lang": translate_language
+        }))
         .send()
         .await
         .unwrap()
@@ -66,7 +69,10 @@ pub async fn translate(text_to_translate: &str, translate_language: &str) -> (St
 }
 
 /// ログメッセージを非同期でファイルに出力するヘルパー関数
-pub async fn log_message(ctx: &poise::serenity_prelude::Context, msg: &Message) -> Result<(), Error> {
+pub async fn log_message(
+    ctx: &poise::serenity_prelude::Context,
+    msg: &Message,
+) -> Result<(), Error> {
     let mut file = OpenOptions::new().append(true).open("log.txt").await?;
     // 日本標準時（UTC+9）のタイムスタンプを取得
     let time = chrono::Utc::now() + chrono::Duration::hours(9);
