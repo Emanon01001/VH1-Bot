@@ -2,8 +2,11 @@ use lavalink_rs::prelude::PlayerContext;
 use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::colours::roles::DARK_BLUE;
 use poise::serenity_prelude::{CreateEmbed, CreateMessage};
+use rand::seq::SliceRandom;
+use std::collections::VecDeque;
 use std::time::Duration;
 
+use crate::commands::music::music_basic::PlayerState;
 use crate::Context;
 use crate::Error;
 
@@ -15,7 +18,7 @@ async fn get_player_context_from_ctx(ctx: &Context<'_>) -> Option<PlayerContext>
 }
 
 /// Skip the current song.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn skip(ctx: Context<'_>, number: Option<usize>) -> Result<(), Error> {
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         let now_playing = player.get_player().await?.track;
@@ -39,7 +42,7 @@ pub async fn skip(ctx: Context<'_>, number: Option<usize>) -> Result<(), Error> 
 }
 
 /// Pause the current song.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         player.set_pause(true).await?;
@@ -51,7 +54,7 @@ pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Resume playing the current song.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         player.set_pause(false).await?;
@@ -63,7 +66,7 @@ pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Stop the current song.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         let now_playing = player.get_player().await?.track;
@@ -80,7 +83,7 @@ pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Jump to a specific time in the song, in seconds.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn seek(
     ctx: Context<'_>,
     #[description = "Time to jump to (in seconds)"] time: u64,
@@ -99,7 +102,7 @@ pub async fn seek(
 }
 
 /// Remove a specific song from the queue.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn remove(
     ctx: Context<'_>,
     #[description = "Queue item index to remove"] index: usize,
@@ -114,7 +117,7 @@ pub async fn remove(
 }
 
 /// Clear the current queue.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         player.get_queue().clear()?;
@@ -126,7 +129,7 @@ pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set the volume of the current player.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn set_volume(ctx: Context<'_>, volume: u16) -> Result<(), Error> {
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         match player.set_volume(volume).await {
@@ -144,7 +147,7 @@ pub async fn set_volume(ctx: Context<'_>, volume: u16) -> Result<(), Error> {
 }
 
 /// Display the current queue.
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
     ctx.defer().await?;
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
@@ -172,6 +175,63 @@ pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
         ctx.say("Join the bot to a voice channel first.").await?;
     }
 
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
+pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
+    if let Some(player) = get_player_context_from_ctx(&ctx).await {
+        let queue_controller = player.get_queue();
+
+        // 現在のキューを取得
+        let current_queue = queue_controller.get_queue().await?;
+        if current_queue.is_empty() {
+            ctx.say("キューが空です。").await?;
+            return Ok(());
+        }
+        
+        let current_queue: VecDeque<lavalink_rs::player_context::TrackInQueue> = {
+            let mut rng = rand::rng();
+            let mut vec: Vec<_> = current_queue.into();
+            vec.shuffle(&mut rng);
+            vec.into()
+        };
+
+        // 一度クリアしてから、シャッフル後の順番で再度追加
+        queue_controller.clear()?;
+        let deque = VecDeque::from(current_queue);
+        queue_controller.append(deque)?;
+
+        ctx.say("キューをシャッフルしました。").await?;
+    } else {
+        ctx.say("ボイスチャンネルに参加していません。").await?;
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
+pub async fn repeat(ctx: Context<'_>) -> Result<(), Error> {
+    // プレイヤーコンテキストを取得
+    if let Some(player) = get_player_context_from_ctx(&ctx).await {
+        match player.data::<tokio::sync::Mutex<PlayerState>>() {
+            Ok(data) => {
+                let mut state = data.lock().await;
+                state.repeat = !state.repeat; // トグル
+                let msg = if state.repeat {
+                    "リピートを ON にしました。"
+                } else {
+                    "リピートを OFF にしました。"
+                };
+                ctx.say(msg).await?;
+            }
+            Err(_) => {
+                ctx.say("PlayerStateの取得に失敗しました。").await?;
+            }
+        }
+    } else {
+        ctx.say("ボイスチャンネルに参加していません。").await?;
+    }
     Ok(())
 }
 

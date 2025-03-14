@@ -46,13 +46,13 @@ struct Id {
     translate_en: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Translations {
     detected_source_language: String,
     text: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct TranslationResponse {
     translations: Vec<Translations>,
 }
@@ -171,6 +171,8 @@ async fn run_bot(
                 commands::music::music_advanced::remove(),
                 commands::music::music_advanced::set_volume(),
                 commands::music::music_advanced::queue(),
+                commands::music::music_advanced::shuffle(),
+                commands::music::music_advanced::repeat(),
                 commands::test::button_test(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
@@ -189,6 +191,7 @@ async fn run_bot(
                     raw: Some(commands::music::music_events::raw_event),
                     ready: Some(commands::music::music_events::ready_event),
                     track_start: Some(commands::music::music_events::track_start),
+                    track_end: Some(commands::music::music_events::track_end),
                     ..Default::default()
                 };
 

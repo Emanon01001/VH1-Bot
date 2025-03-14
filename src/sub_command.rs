@@ -9,16 +9,16 @@ use crate::Error;
 use crate::TranslationResponse;
 use crate::GLOBAL_DATA;
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     let latency = ctx.ping().await;
     ctx.say(format!("{:?}ms", latency.as_millis())).await?;
     Ok(())
 }
 
-#[poise::command(slash_command)]
-pub async fn trans(ctx: Context<'_>, language: String, word: String) -> Result<(), Error> {
-    let text_to_translate = word;
+#[poise::command(slash_command, prefix_command)]
+pub async fn trans(ctx: Context<'_>, language: String, word: Vec<String>) -> Result<(), Error> {
+    let text_to_translate = word.join(" ");
     let translate_language = language;
 
     let trans = translate(text_to_translate.as_str(), translate_language.as_str()).await;
@@ -47,7 +47,7 @@ pub async fn translate(text_to_translate: &str, translate_language: &str) -> (St
         )
         .header("Content-Type", "application/json")
         .json(&serde_json::json!({
-            "text": [text_to_translate],
+            "text": [text_to_translate.replace("\"", "\\\"")],
             "target_lang": translate_language
         }))
         .send()

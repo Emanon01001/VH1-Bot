@@ -3,11 +3,23 @@ use crate::Error;
 
 use lavalink_rs::prelude::*;
 use poise::serenity_prelude::{Color, CreateEmbed, CreateMessage};
+use serde::Serialize;
 use std::collections::VecDeque;
 use std::num::NonZeroU64;
+use std::sync::Arc;
 
 use poise::serenity_prelude as serenity;
 use serenity::{Http, Mentionable};
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PlayerState {
+    pub voice_channel_id: serenity::ChannelId, // 接続先ボイスチャンネル
+    pub text_channel_id: serenity::ChannelId,  // 通知用テキストチャンネル
+    #[serde(skip)] // Http はシリアライズできないので必要なら skip
+    pub http: Arc<Http>,
+    pub repeat: bool, // リピートフラグ
+}
+
 
 /// ギルドIDから Lavalink 用の GuildId に変換するヘルパー
 fn lavalink_guild_id(guild_id: serenity::GuildId) -> lavalink_rs::model::GuildId {
@@ -55,20 +67,20 @@ pub async fn _join(
 
         match join_result {
             Ok((connection_info, _)) => {
-                lava_client
-                    .create_player_context_with_data::<(serenity::ChannelId, std::sync::Arc<Http>)>(
-                        lavalink_guild_id(guild_id),
-                        lavalink_rs::model::player::ConnectionInfo {
-                            endpoint: connection_info.endpoint,
-                            token: connection_info.token,
-                            session_id: connection_info.session_id,
-                        },
-                        std::sync::Arc::new((
-                            ctx.channel_id(),
-                            ctx.serenity_context().http.clone(),
-                        )),
-                    )
-                    .await?;
+                lava_client.create_player_context_with_data::<tokio::sync::Mutex<PlayerState>>(
+                    lavalink_guild_id(guild_id),
+                    lavalink_rs::model::player::ConnectionInfo {
+                        endpoint: connection_info.endpoint,
+                        token: connection_info.token,
+                        session_id: connection_info.session_id,
+                    },
+                    Arc::new(tokio::sync::Mutex::new(PlayerState {
+                        voice_channel_id: connect_to,
+                        text_channel_id: ctx.channel_id(),
+                        http: ctx.serenity_context().http.clone(),
+                        repeat: false,
+                    })),
+                ).await?;
                 ctx.say(format!("Joined {}", connect_to.mention())).await?;
                 Ok(true)
             }
@@ -84,7 +96,7 @@ pub async fn _join(
 }
 
 /// 曲を再生するコマンド
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn play(
     ctx: Context<'_>,
     #[description = "Search term or URL"]
@@ -193,7 +205,7 @@ pub async fn play(
 }
 
 /// ボイスチャンネルに接続するコマンド
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn join(ctx: Context<'_>, channel_id: Option<serenity::ChannelId>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Guild ID not found")?;
     let _ = _join(&ctx, guild_id, channel_id).await?;
@@ -201,7 +213,7 @@ pub async fn join(ctx: Context<'_>, channel_id: Option<serenity::ChannelId>) -> 
 }
 
 /// ボイスチャンネルから退出するコマンド
-#[poise::command(prefix_command)]
+#[poise::command(slash_command, prefix_command)]
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Guild ID not found")?;
     let manager = songbird::get(ctx.serenity_context())
