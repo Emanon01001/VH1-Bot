@@ -3,7 +3,11 @@
 mod commands;
 mod sub_command;
 
+use crate::localserver::LocalHttpServerHandle;
+
+use chrono::Local;
 use eframe::{egui, App, NativeOptions};
+use egui::{Vec2, ViewportBuilder};
 use std::process::Command as SysCommand;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -11,7 +15,6 @@ use std::sync::{
 };
 use tokio::{runtime::Runtime, sync::oneshot};
 
-// --- ここから先は、従来のBotコードを「run_bot」関数にまとめるイメージ --- //
 use lavalink_rs::{model::events, prelude::*};
 use once_cell::sync::Lazy;
 use poise::serenity_prelude::{
@@ -20,8 +23,9 @@ use poise::serenity_prelude::{
 };
 use serde::Deserialize;
 use songbird::{Config, SerenityInit};
-use sub_command::{log_message, translate};
+use sub_command::translate;
 
+// ------------------------------- 設定用構造体 -------------------------------
 #[derive(Deserialize, Debug)]
 struct Database {
     token: Tokens,
@@ -60,15 +64,11 @@ struct TranslationResponse {
 /// 翻訳処理の結果を返す型
 type TranslationResult = (String, String);
 
+// ------------------------------- イベントハンドラ類 -------------------------------
 struct Translate;
-struct MessageLog;
-
-struct Data {
-    lavalink: LavalinkClient,
+struct MessageLog {
+    chat_messages: Arc<Mutex<Vec<String>>>,
 }
-
-type Error = Box<dyn std::error::Error + Send + Sync>;
-type Context<'a> = poise::Context<'a, Data, Error>;
 
 static GLOBAL_DATA: Lazy<Database> = Lazy::new(|| {
     let config_content = std::fs::read_to_string("D:/Programming/Rust/VH1-Bot/src/Setting.toml")
@@ -103,12 +103,11 @@ impl EventHandler for Translate {
                 let mut description = String::new();
                 if has_translate_ja {
                     let result: TranslationResult = translate(&msg.content, "ja").await;
-                    description
-                        .push_str(&format!("**日本語翻訳**\n`{}`: {}\n", result.0, result.1));
+                    description.push_str(&format!("**日本語翻訳**\n{}: {}\n", result.0, result.1));
                 }
                 if has_translate_en {
                     let result: TranslationResult = translate(&msg.content, "en").await;
-                    description.push_str(&format!("**英語翻訳**\n`{}`: {}\n", result.0, result.1));
+                    description.push_str(&format!("**英語翻訳**\n{}: {}\n", result.0, result.1));
                 }
 
                 if !description.is_empty() {
@@ -135,23 +134,66 @@ impl EventHandler for MessageLog {
         if msg.author.bot {
             return;
         }
-        println!("{}: {}", msg.author.name, msg.content);
-        if let Err(err) = log_message(&ctx, &msg).await {
-            eprintln!("ログ書き込みエラー: {:?}", err);
+        
+        // タイムスタンプを取得（例: 2025-03-19 15:30:00）
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        
+        // ギルド名の取得 (ギルドIDがある場合はHTTP経由で名前を取得、失敗した場合はIDを表示)
+        let guild_name = if let Some(guild_id) = msg.guild_id {
+            if let Some(guild) = guild_id.to_guild_cached(&ctx.cache) {
+                guild.name.clone()
+            } else {
+                format!("GuildID: {}", guild_id)
+            }
+        } else {
+            "DM".to_string()
+        };
+        // ログにタイムスタンプ、ギルド名、送信者名、メッセージ内容を含める
+        let mut line = format!("[{}] {} - {}: {}", timestamp, guild_name, msg.author.name, msg.content);
+        
+        // 添付ファイルがある場合、そのURLを追加
+        if !msg.attachments.is_empty() {
+            line.push_str(" [添付ファイル: ");
+            for att in &msg.attachments {
+                line.push_str(&att.url);
+                line.push(' ');
+            }
+            line.push(']');
+        }
+        
+        // スタンプがある場合、そのスタンプ名を追加
+        // ※ Discord API のバージョンや Serenity の設定により、sticker_items が利用可能な場合
+        if !msg.sticker_items.is_empty() {
+            line.push_str(" [スタンプ: ");
+            for sticker in &msg.sticker_items {
+                line.push_str(&sticker.name);
+                line.push(' ');
+            }
+            line.push(']');
+        }
+        
+        // chat_messages に追加
+        {
+            let mut messages = self.chat_messages.lock().unwrap();
+            messages.push(line);
         }
     }
 }
 
-///
-/// Botの起動処理をまとめた非同期関数。
-/// GUI（egui/eframe）の別スレッド/別ランタイムから呼び出す想定。
-///
-/// - `pid_holder`: Lavalink のプロセスIDを格納するためのArc<Mutex<Option<u32>>>。
-///
+// ------------------------------- Bot / Lavalink 用データ構造 -------------------------------
+struct Data {
+    lavalink: LavalinkClient,
+}
+
+type Error = Box<dyn std::error::Error + Send + Sync>;
+type Context<'a> = poise::Context<'a, Data, Error>;
+
+// ------------------------------- Bot 起動処理 -------------------------------
 async fn run_bot(
     mut shutdown_rx: oneshot::Receiver<()>,
     log_buffer: Arc<Mutex<Vec<String>>>,
     pid_holder: Arc<Mutex<Option<u32>>>,
+    chatmessage: Arc<Mutex<Vec<String>>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // フレームワークの生成
     let framework = poise::Framework::builder()
@@ -227,14 +269,16 @@ async fn run_bot(
         &GLOBAL_DATA.token.token,
         GatewayIntents::all() | GatewayIntents::GUILD_VOICE_STATES,
     )
-    .event_handler(MessageLog)
+    .event_handler(MessageLog {
+        chat_messages: Arc::clone(&chatmessage),
+    })
     .event_handler(Translate)
     .framework(framework)
     .register_songbird_from_config(songbird_config)
     .await
     .expect("Clientの作成に失敗しました");
 
-    // Lavalinkプロセスの起動部分 (java.exe を直接起動)
+    // Lavalinkプロセスの起動 (java.exe を直接起動) ※Windows向け
     let mut lavalink_child = {
         #[cfg(windows)]
         fn spawn_java_hidden() -> std::io::Result<tokio::process::Child> {
@@ -253,9 +297,10 @@ async fn run_bot(
         spawn_java_hidden()
     };
 
+    // LavalinkプロセスのPIDおよびログ読み取り設定
     match &mut lavalink_child {
         Ok(child) => {
-            // ★ ここで PID を取得して pid_holder にセット
+            // PID を取得して pid_holder にセット
             if let Some(pid) = child.id() {
                 let mut holder = pid_holder.lock().unwrap();
                 *holder = Some(pid);
@@ -264,9 +309,9 @@ async fn run_bot(
                 println!("[WARN] LavalinkプロセスのPIDを取得できませんでした。");
             }
 
+            // Lavalinkログを読み取り、log_buffer に貯める
             if let Some(stdout) = child.stdout.take() {
                 let log_buffer_for_task = Arc::clone(&log_buffer);
-                // 非同期タスクでログの読み取り
                 tokio::spawn(async move {
                     use tokio::io::{AsyncBufReadExt, BufReader};
                     let mut reader = BufReader::new(stdout);
@@ -292,7 +337,7 @@ async fn run_bot(
         Err(err) => eprintln!("Lavalinkプロセスの起動に失敗しました: {:?}", err),
     }
 
-    // shutdownシグナル待ちとDiscord Clientの起動を並行処理する
+    // shutdown シグナル待ちと Discord Client の起動を並行処理
     tokio::select! {
         res = client.start() => {
             if let Err(err) = res {
@@ -302,10 +347,10 @@ async fn run_bot(
         },
         _ = &mut shutdown_rx => {
             println!("停止要求を受信しました。");
-            // Discord Clientの停止
+            // Discord Client停止
             client.shard_manager.shutdown_all().await;
 
-            // Lavalinkプロセスの停止（kill() は await する必要があります）
+            // Lavalinkプロセス停止
             if let Ok(child) = &mut lavalink_child {
                 if let Err(err) = child.kill().await {
                     eprintln!("Lavalinkプロセスの停止に失敗しました: {:?}", err);
@@ -319,23 +364,19 @@ async fn run_bot(
             }
         },
     }
-
     Ok(())
 }
 
-/*  --- ここから下はGUI周りのコード ---
-    GUIアプリケーションの状態を保持する構造体
-*/
+// ------------------------------- GUI用構造体 -------------------------------
 struct MyEguiApp {
     /// Botが現在起動中かどうか
     bot_running: Arc<AtomicBool>,
-    /// Tokioランタイム(ボタンクリックで生成)を保持しておくなど
+    /// Tokioランタイム(ボタンクリックで生成)を保持しておく
     runtime: Option<Runtime>,
-
     shutdown_tx: Option<oneshot::Sender<()>>,
     lavalink_logs: Arc<Mutex<Vec<String>>>,
-    /// LavalinkプロセスのPIDを保持する変数
     lavalink_pid: Arc<Mutex<Option<u32>>>,
+    chat_messages: Arc<Mutex<Vec<String>>>,
 }
 
 impl MyEguiApp {
@@ -348,10 +389,12 @@ impl MyEguiApp {
             shutdown_tx: None,
             lavalink_logs: Arc::new(Mutex::new(Vec::new())),
             lavalink_pid: Arc::new(Mutex::new(None)),
+            chat_messages: Arc::new(Mutex::new(Vec::new())), // ★ 初期化
         }
     }
 }
 
+/// Meiryo フォントを適用
 fn setup_custom_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
@@ -367,26 +410,60 @@ fn setup_custom_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
+// ------------------------------- eframe::App 実装 -------------------------------
 impl App for MyEguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // ──────────────────────────────────────────────────────────────
+        // ① 右サイドパネル (Logs)
+        // ──────────────────────────────────────────────────────────────
+        egui::SidePanel::right("LogPanel")
+            .resizable(false)
+            .width_range(600.0..=600.0)
+            // 起動時・リサイズ時のパネル幅の範囲
+            .show(ctx, |ui| {
+                ui.heading("Logs");
+                ui.separator();
+
+                // ログを連結
+                let logs = self.lavalink_logs.lock().expect("Mutex lock failed");
+                let mut log_text = logs.join("\n");
+                drop(logs); // 早めに解放
+
+                // パネル全体をテキストエリアに使う
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let available = ui.available_size();
+                    ui.add_sized(
+                        available,
+                        egui::TextEdit::multiline(&mut log_text).interactive(false), // 編集不可
+                    );
+                });
+            });
+
+        // ──────────────────────────────────────────────────────────────
+        // ② 中央パネル (Bot起動制御)
+        // ──────────────────────────────────────────────────────────────
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Bot起動制御パネル");
-
             if !self.bot_running.load(Ordering::SeqCst) {
                 // 起動していない場合
                 if ui.button("Botを起動").clicked() {
                     let bot_flag = self.bot_running.clone();
                     bot_flag.store(true, Ordering::SeqCst);
 
+                    // シャットダウン用チャンネル
                     let (shutdown_tx, shutdown_rx) = oneshot::channel();
                     self.shutdown_tx = Some(shutdown_tx);
 
                     let rt = Runtime::new().expect("Tokioランタイムの生成に失敗");
-
                     let lavalink_logs = Arc::clone(&self.lavalink_logs);
                     let pid_holder = Arc::clone(&self.lavalink_pid);
+                    let chat_message = Arc::clone(&self.chat_messages);
+
+                    // Bot起動タスクをspawn
                     rt.spawn(async move {
-                        if let Err(e) = run_bot(shutdown_rx, lavalink_logs, pid_holder).await {
+                        if let Err(e) =
+                            run_bot(shutdown_rx, lavalink_logs, pid_holder, chat_message).await
+                        {
                             eprintln!("Bot error: {:?}", e);
                         }
                         bot_flag.store(false, Ordering::SeqCst);
@@ -397,18 +474,16 @@ impl App for MyEguiApp {
                 // 起動中
                 ui.label("Botは起動中");
                 if ui.button("Botを停止").clicked() {
-                    // 1) 普通のシャットダウン処理を送信
+                    // 1) シャットダウン通知
                     if let Some(tx) = self.shutdown_tx.take() {
                         let _ = tx.send(());
                     }
-                    // 2) Tokioランタイムをシャットダウン
+                    // 2) Tokioランタイムを閉じる
                     if let Some(rt) = self.runtime.take() {
                         rt.shutdown_background();
                     }
-                    // 3) 強制終了（taskkill）を試す
+                    // 3) Lavalinkプロセスを強制終了
                     if let Some(pid) = *self.lavalink_pid.lock().unwrap() {
-                        // Windowsのtaskkillコマンドで強制終了
-                        // "/PID" とPIDを渡して /Fフラグで強制終了
                         let output = SysCommand::new("taskkill")
                             .args(["/F", "/PID", &pid.to_string()])
                             .output();
@@ -424,36 +499,56 @@ impl App for MyEguiApp {
                             }
                         }
                     }
-                    // PIDもリセット
+                    // PIDをリセット
                     *self.lavalink_pid.lock().unwrap() = None;
-                    // 状態を停止に
+                    // 起動フラグを下ろす
                     self.bot_running.store(false, Ordering::SeqCst);
                 }
-            }
-        });
+            };
 
-        // 右側にログパネル
-        egui::SidePanel::right("LogPanel")
-            .resizable(true)
-            .min_width(800.0)
-            .max_width(800.0)
-            .show(ctx, |ui| {
-                ui.heading("Logs");
-                ui.separator();
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    let logs = self.lavalink_logs.lock().expect("Mutex lock failed");
-                    // 新しいログが下に溜まるので、上から見る場合は逆順に表示
-                    for log in logs.iter().rev() {
-                        ui.label(log);
-                    }
-                });
+/*
+                    制作途中
+ */
+
+
+
+            ui.separator();
+            ui.heading("メッセージログ一覧");
+
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                egui::ScrollArea::vertical()
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        // テキストボックス風の枠を作成
+                        egui::Frame::group(ui.style())
+                            .fill(ui.style().visuals.extreme_bg_color) // 背景色を設定（必要に応じて変更）
+                            .stroke(egui::Stroke::new(1.0, ui.style().visuals.widgets.noninteractive.bg_stroke.color)) // 枠線
+                            .show(ui, |ui| {
+                                let message_log = self.chat_messages.lock().unwrap();
+                                for log in message_log.iter() {
+                                    if log.trim().starts_with("http://") || log.trim().starts_with("https://") {
+                                        ui.hyperlink(log);
+                                    } else {
+                                        ui.label(log);
+                                    }
+                                }
+                            });
+                    });
             });
+            
+        });
+        ctx.request_repaint_after(std::time::Duration::from_millis(1));
     }
+    
+}
 
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+
+
+impl Drop for MyEguiApp {
+    fn drop(&mut self) {
+        // もし Lavalinkプロセス が残っていれば強制終了
+
         if let Some(pid) = *self.lavalink_pid.lock().unwrap() {
-            // Windowsのtaskkillコマンドで強制終了
-            // "/PID" とPIDを渡して /Fフラグで強制終了
             let output = SysCommand::new("taskkill")
                 .args(["/F", "/PID", &pid.to_string()])
                 .output();
@@ -472,28 +567,21 @@ impl App for MyEguiApp {
     }
 }
 
-///
-/// エントリーポイント（コンソールアプリではなくGUIアプリとして起動）
-///
+// ------------------------------- メインエントリーポイント -------------------------------
 fn main() {
     let _ = tracing_subscriber::fmt::try_init();
 
     let native_options = NativeOptions {
         vsync: true,
-        multisampling: 0,
-        depth_buffer: 0,
-        stencil_buffer: 0,
-        hardware_acceleration: eframe::HardwareAcceleration::Preferred,
-        renderer: eframe::Renderer::default(),
-        run_and_return: false,
-        event_loop_builder: None,
-        window_builder: None,
-        shader_version: None,
-        centered: true,
-        persist_window: false,
-        persistence_path: None,
-        dithering: false,
+        // 好みに合わせてウィンドウサイズなどを設定
         viewport: egui::ViewportBuilder::default().with_inner_size([1000f32, 500f32]),
+        window_builder: Some(Box::new(|builder: ViewportBuilder| {
+            builder
+                .with_max_inner_size(Vec2::new(900.0, 500.0))
+                .with_min_inner_size(Vec2::new(900.0, 500.0))
+                .with_resizable(false)
+        })),
+        ..Default::default()
     };
 
     let _ = eframe::run_native(

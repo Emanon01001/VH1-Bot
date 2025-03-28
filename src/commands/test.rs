@@ -24,7 +24,7 @@ pub async fn button_test(ctx: Context<'_>) -> Result<(), Error> {
         .send(
             poise::CreateReply::default()
                 .embed(embed)
-                .components(vec![action_row])
+                .components(vec![action_row]),
         )
         .await?;
 

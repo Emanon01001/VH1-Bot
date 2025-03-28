@@ -20,7 +20,6 @@ pub struct PlayerState {
     pub repeat: bool, // リピートフラグ
 }
 
-
 /// ギルドIDから Lavalink 用の GuildId に変換するヘルパー
 fn lavalink_guild_id(guild_id: serenity::GuildId) -> lavalink_rs::model::GuildId {
     lavalink_rs::model::GuildId::from(u64::from(guild_id))
@@ -67,20 +66,22 @@ pub async fn _join(
 
         match join_result {
             Ok((connection_info, _)) => {
-                lava_client.create_player_context_with_data::<tokio::sync::Mutex<PlayerState>>(
-                    lavalink_guild_id(guild_id),
-                    lavalink_rs::model::player::ConnectionInfo {
-                        endpoint: connection_info.endpoint,
-                        token: connection_info.token,
-                        session_id: connection_info.session_id,
-                    },
-                    Arc::new(tokio::sync::Mutex::new(PlayerState {
-                        voice_channel_id: connect_to,
-                        text_channel_id: ctx.channel_id(),
-                        http: ctx.serenity_context().http.clone(),
-                        repeat: false,
-                    })),
-                ).await?;
+                lava_client
+                    .create_player_context_with_data::<tokio::sync::Mutex<PlayerState>>(
+                        lavalink_guild_id(guild_id),
+                        lavalink_rs::model::player::ConnectionInfo {
+                            endpoint: connection_info.endpoint,
+                            token: connection_info.token,
+                            session_id: connection_info.session_id,
+                        },
+                        Arc::new(tokio::sync::Mutex::new(PlayerState {
+                            voice_channel_id: connect_to,
+                            text_channel_id: ctx.channel_id(),
+                            http: ctx.serenity_context().http.clone(),
+                            repeat: false,
+                        })),
+                    )
+                    .await?;
                 ctx.say(format!("Joined {}", connect_to.mention())).await?;
                 Ok(true)
             }

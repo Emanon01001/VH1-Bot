@@ -69,7 +69,7 @@ pub async fn translate(text_to_translate: &str, translate_language: &str) -> (St
 }
 
 /// ログメッセージを非同期でファイルに出力するヘルパー関数
-pub async fn log_message(
+pub async fn _log_message(
     ctx: &poise::serenity_prelude::Context,
     msg: &Message,
 ) -> Result<(), Error> {

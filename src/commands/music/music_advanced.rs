@@ -36,7 +36,12 @@ pub async fn skip(ctx: Context<'_>, number: Option<usize>) -> Result<(), Error> 
             ctx.say("Nothing to skip.").await?;
         }
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -48,7 +53,12 @@ pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
         player.set_pause(true).await?;
         ctx.say("Paused.").await?;
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -60,7 +70,12 @@ pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
         player.set_pause(false).await?;
         ctx.say("Resumed playback.").await?;
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -77,7 +92,12 @@ pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
             ctx.say("Nothing to stop.").await?;
         }
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -96,7 +116,12 @@ pub async fn seek(
             ctx.say("Nothing is playing.").await?;
         }
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -111,7 +136,12 @@ pub async fn remove(
         player.get_queue().remove(index)?;
         ctx.say("Removed successfully.").await?;
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -123,7 +153,12 @@ pub async fn clear(ctx: Context<'_>) -> Result<(), Error> {
         player.get_queue().clear()?;
         ctx.say("Queue cleared successfully.").await?;
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -141,7 +176,12 @@ pub async fn set_volume(ctx: Context<'_>, volume: u16) -> Result<(), Error> {
             }
         }
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
@@ -149,7 +189,7 @@ pub async fn set_volume(ctx: Context<'_>, volume: u16) -> Result<(), Error> {
 /// Display the current queue.
 #[poise::command(slash_command, prefix_command)]
 pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
-    ctx.defer().await?;
+    ctx.say("キューを表示します...").await?;
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         let queue = player.get_queue().get_queue().await?;
         let mut fields: Vec<(String, String, bool)> = Vec::new();
@@ -172,7 +212,12 @@ pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
             println!("Error sending queue message: {}", e);
         }
     } else {
-        ctx.say("Join the bot to a voice channel first.").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        let _msg_resp = ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
 
     Ok(())
@@ -180,16 +225,22 @@ pub async fn queue(ctx: Context<'_>, n: usize) -> Result<(), Error> {
 
 #[poise::command(slash_command, prefix_command)]
 pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("キューをシャッフルしています...").await?;
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         let queue_controller = player.get_queue();
 
         // 現在のキューを取得
         let current_queue = queue_controller.get_queue().await?;
         if current_queue.is_empty() {
-            ctx.say("キューが空です。").await?;
+            let embed = CreateEmbed::new()
+                .title("Queue")
+                .color(DARK_BLUE)
+                .description("キューが空です。");
+            let builder = CreateMessage::new().tts(false).embed(embed);
+            ctx.channel_id().send_message(&ctx.http(), builder).await?;
             return Ok(());
         }
-        
+
         let current_queue: VecDeque<lavalink_rs::player_context::TrackInQueue> = {
             let mut rng = rand::rng();
             let mut vec: Vec<_> = current_queue.into();
@@ -202,9 +253,19 @@ pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
         let deque = VecDeque::from(current_queue);
         queue_controller.append(deque)?;
 
-        ctx.say("キューをシャッフルしました。").await?;
+        let embed = CreateEmbed::new()
+            .title("Queue Shuffled")
+            .color(DARK_BLUE)
+            .description("キューをシャッフルしました。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     } else {
-        ctx.say("ボイスチャンネルに参加していません。").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
 
     Ok(())
@@ -212,6 +273,7 @@ pub async fn shuffle(ctx: Context<'_>) -> Result<(), Error> {
 
 #[poise::command(slash_command, prefix_command)]
 pub async fn repeat(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.say("リピート設定を変更しています...").await?;
     // プレイヤーコンテキストを取得
     if let Some(player) = get_player_context_from_ctx(&ctx).await {
         match player.data::<tokio::sync::Mutex<PlayerState>>() {
@@ -223,14 +285,29 @@ pub async fn repeat(ctx: Context<'_>) -> Result<(), Error> {
                 } else {
                     "リピートを OFF にしました。"
                 };
-                ctx.say(msg).await?;
+                let embed = CreateEmbed::new()
+                    .title("Repeat Mode")
+                    .color(DARK_BLUE)
+                    .description(msg);
+                let builder = CreateMessage::new().tts(false).embed(embed);
+                ctx.channel_id().send_message(&ctx.http(), builder).await?;
             }
             Err(_) => {
-                ctx.say("PlayerStateの取得に失敗しました。").await?;
+                let embed = CreateEmbed::new()
+                    .title("Error")
+                    .color(DARK_BLUE)
+                    .description("PlayerStateの取得に失敗しました。");
+                let builder = CreateMessage::new().tts(false).embed(embed);
+                ctx.channel_id().send_message(&ctx.http(), builder).await?;
             }
         }
     } else {
-        ctx.say("ボイスチャンネルに参加していません。").await?;
+        let embed = CreateEmbed::new()
+            .title("Error")
+            .color(DARK_BLUE)
+            .description("ボイスチャンネルに参加していません。");
+        let builder = CreateMessage::new().tts(false).embed(embed);
+        ctx.channel_id().send_message(&ctx.http(), builder).await?;
     }
     Ok(())
 }
