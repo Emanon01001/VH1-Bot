@@ -84,7 +84,7 @@ pub async fn start_local_server(
             "Local file server is running. Use /file/<filename> to fetch a file."
         }));
 
-    let server = axum::Server::bind(&bind_addr)
+    let server = tokio::net::windows::named_pipe::PipeEnd::bind(&bind_addr)
         .serve(router.into_make_service())
         .with_graceful_shutdown(async {
             let _ = shutdown_rx.await;

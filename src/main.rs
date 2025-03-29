@@ -2,8 +2,10 @@
 
 mod commands;
 mod sub_command;
+mod localserver;
 
 use crate::localserver::LocalHttpServerHandle;
+
 
 use chrono::Local;
 use eframe::{egui, App, NativeOptions};
@@ -183,6 +185,7 @@ impl EventHandler for MessageLog {
 // ------------------------------- Bot / Lavalink 用データ構造 -------------------------------
 struct Data {
     lavalink: LavalinkClient,
+    pub local_server: Arc<Mutex<Option<LocalHttpServerHandle>>>,
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -256,7 +259,7 @@ async fn run_bot(
                 )
                 .await;
 
-                Ok(Data { lavalink: client })
+                Ok(Data { lavalink: client, local_server: Arc::new(Mutex::new(None)) })
             })
         })
         .build();
