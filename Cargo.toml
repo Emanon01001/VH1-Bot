@@ -18,7 +18,7 @@ serde = "1.0.219"
 futures = "0.3"
 reqwest = { version = "0.12.15", features = ["json", "blocking"]}
 log = "0.4.27"
-once_cell = "1.21.2"
+once_cell = "1.21.3"
 toml = "0.8.20"
 chrono = "0.4.40"
 dashmap = "6.1.0"
@@ -26,8 +26,9 @@ anyhow = "1.0.97"
 eframe = "0.31.1"
 egui = "0.31.1"
 rand = "0.9.0"
-axum = "0.8.1"
-tower-http = "0.6.2"
+axum = "0.8.3"
+tower-http = { version = "0.6", features = ["fs"] }
+hyper = "1.6.0"
 
 [dependencies.poise]
 version = "0.6.1"
@@ -43,7 +44,7 @@ features = ["gateway", "serenity", "native", "driver", "receive", "tungstenite"]
 version = "0.5.4"
 
 [dependencies.tokio]
-version = "1.44.1"
+version = "1.44.2"
 features = ["rt-multi-thread", "macros"]
 
 [dependencies.lavalink-rs]
