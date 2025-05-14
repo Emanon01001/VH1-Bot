@@ -3,18 +3,9 @@
 mod commands;
 mod sub_command;
 
-
-
 use chrono::Local;
 use eframe::{egui, App, NativeOptions};
 use egui::{Vec2, ViewportBuilder};
-use std::process::Command as SysCommand;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
-use tokio::{runtime::Runtime, sync::oneshot};
-
 use lavalink_rs::{model::events, prelude::*};
 use once_cell::sync::Lazy;
 use poise::serenity_prelude::{
@@ -23,7 +14,15 @@ use poise::serenity_prelude::{
 };
 use serde::Deserialize;
 use songbird::{Config, SerenityInit};
+use std::fs::{create_dir_all, OpenOptions};
+use std::io::Write; // ← ここを追加！
+use std::process::Command as SysCommand;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use sub_command::translate;
+use tokio::{runtime::Runtime, sync::oneshot};
 
 // ------------------------------- 設定用構造体 -------------------------------
 #[derive(Deserialize, Debug)]
@@ -128,16 +127,27 @@ impl EventHandler for Translate {
     }
 }
 
+fn append_log<P: AsRef<std::path::Path>>(path: P, line: &str) {
+    // フォルダが無ければ作成
+    if let Some(parent) = path.as_ref().parent() {
+        let _ = create_dir_all(parent);
+    }
+    // 追記モードで開き、書き込み
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
 #[async_trait]
 impl EventHandler for MessageLog {
     async fn message(&self, ctx: poise::serenity_prelude::Context, msg: Message) {
         if msg.author.bot {
             return;
         }
-        
+
         // タイムスタンプを取得（例: 2025-03-19 15:30:00）
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        
+
         // ギルド名の取得 (ギルドIDがある場合はHTTP経由で名前を取得、失敗した場合はIDを表示)
         let guild_name = if let Some(guild_id) = msg.guild_id {
             if let Some(guild) = guild_id.to_guild_cached(&ctx.cache) {
@@ -149,8 +159,11 @@ impl EventHandler for MessageLog {
             "DM".to_string()
         };
         // ログにタイムスタンプ、ギルド名、送信者名、メッセージ内容を含める
-        let mut line = format!("[{}] {} - {}: {}", timestamp, guild_name, msg.author.name, msg.content);
-        
+        let mut line = format!(
+            "[{}] {} - {}: {}",
+            timestamp, guild_name, msg.author.name, msg.content
+        );
+
         // 添付ファイルがある場合、そのURLを追加
         if !msg.attachments.is_empty() {
             line.push_str(" [添付ファイル: ");
@@ -160,7 +173,7 @@ impl EventHandler for MessageLog {
             }
             line.push(']');
         }
-        
+
         // スタンプがある場合、そのスタンプ名を追加
         // ※ Discord API のバージョンや Serenity の設定により、sticker_items が利用可能な場合
         if !msg.sticker_items.is_empty() {
@@ -171,12 +184,13 @@ impl EventHandler for MessageLog {
             }
             line.push(']');
         }
-        
+
         // chat_messages に追加
         {
             let mut messages = self.chat_messages.lock().unwrap();
-            messages.push(line);
+            messages.push(line.clone());
         }
+        append_log("logs/discord_messages.log", &line); // ★追加
     }
 }
 
@@ -329,6 +343,7 @@ async fn run_bot(
                                 buf.remove(0);
                             }
                         }
+                        append_log("logs/lavalink.log", line.trim_end()); // ★追加
                         line.clear();
                     }
                 });
@@ -505,13 +520,9 @@ impl App for MyEguiApp {
                     self.bot_running.store(false, Ordering::SeqCst);
                 }
             };
-
-/*
-                    制作途中
- */
-
-
-
+            /*
+                               制作途中
+            */
             ui.separator();
             ui.heading("メッセージログ一覧");
 
@@ -522,11 +533,16 @@ impl App for MyEguiApp {
                         // テキストボックス風の枠を作成
                         egui::Frame::group(ui.style())
                             .fill(ui.style().visuals.extreme_bg_color) // 背景色を設定（必要に応じて変更）
-                            .stroke(egui::Stroke::new(1.0, ui.style().visuals.widgets.noninteractive.bg_stroke.color)) // 枠線
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                ui.style().visuals.widgets.noninteractive.bg_stroke.color,
+                            )) // 枠線
                             .show(ui, |ui| {
                                 let message_log = self.chat_messages.lock().unwrap();
                                 for log in message_log.iter() {
-                                    if log.trim().starts_with("http://") || log.trim().starts_with("https://") {
+                                    if log.trim().starts_with("http://")
+                                        || log.trim().starts_with("https://")
+                                    {
                                         ui.hyperlink(log);
                                     } else {
                                         ui.label(log);
@@ -535,14 +551,10 @@ impl App for MyEguiApp {
                             });
                     });
             });
-            
         });
         ctx.request_repaint_after(std::time::Duration::from_millis(1));
     }
-    
 }
-
-
 
 impl Drop for MyEguiApp {
     fn drop(&mut self) {
@@ -571,6 +583,7 @@ impl Drop for MyEguiApp {
 fn main() {
     let _ = tracing_subscriber::fmt::try_init();
 
+    let _ = create_dir_all("logs"); // ★追加
     let native_options = NativeOptions {
         vsync: true,
         // 好みに合わせてウィンドウサイズなどを設定
